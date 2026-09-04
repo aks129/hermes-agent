@@ -270,6 +270,22 @@ else
     if launchctl print "gui/$(id -u)/ai.openclaw.node" >/dev/null 2>&1; then
         warn "ai.openclaw.node LaunchAgent present alongside gateway (restart-loop cause): openclaw node uninstall"
     fi
+    # A channel account with no routing owner makes that channel's worker
+    # restart in a loop while the gateway itself reports healthy.
+    OC_LOGS="$(ls -t "$HOME/Library/Logs/openclaw"/*.log "${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"/logs/*.log /tmp/openclaw/*.log 2>/dev/null | head -5)"
+    if [ -n "$OC_LOGS" ]; then
+        # shellcheck disable=SC2086
+        ROUTE_ERR="$(grep -h -o '[a-z]* account [a-z0-9_-]* routing has no explicit owner' $OC_LOGS 2>/dev/null | sort -u | head -3)"
+        if [ -n "$ROUTE_ERR" ]; then
+            fail "channel routing has no owner: $(printf '%s' "$ROUTE_ERR" | tr '\n' ';')"
+            hint "Add a binding, e.g. for telegram:default -> agent main:"
+            hint "  openclaw config set bindings '[{\"agentId\":\"main\",\"match\":{\"channel\":\"telegram\",\"accountId\":\"default\"}}]' --strict-json --merge ; openclaw gateway restart"
+        fi
+        # shellcheck disable=SC2086
+        if grep -q 'systemAgent.agentId' $OC_LOGS 2>/dev/null; then
+            warn "log asks for agents.defaults.systemAgent.agentId (cron/memory reconcile): openclaw config set agents.defaults.systemAgent.agentId main"
+        fi
+    fi
     if [ "$NO_INFERENCE" -eq 0 ] && [ -n "$MODEL" ]; then
         OUT="$(openclaw infer model run --model "vllm/$MODEL" --prompt "Reply with the single word OK." --json 2>&1 || true)"
         if printf '%s' "$OUT" | grep -qi '"text"\|"output"\|"content"\|OK'; then pass "openclaw infer via vllm/$MODEL"; else

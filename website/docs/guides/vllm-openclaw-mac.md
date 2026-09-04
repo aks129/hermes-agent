@@ -152,8 +152,17 @@ openclaw config validate
 | `messages[].content: invalid type: sequence` | Set `compat.requiresStringContent: true` on the model entry. |
 | Backend crashes on large prompts | Lower `contextWindow` in the provider entry, or as a last resort `compat.supportsTools: false`. |
 | Channels go quiet for hours | Mac slept. `sudo pmset -a sleep 0 disksleep 0 standby 0 powernap 0`. |
+| Gateway healthy but one channel account restarts in a loop; log says `telegram account default routing has no explicit owner` | No binding routes that account to an agent. Add one (see below), then `openclaw gateway restart`. The checker greps the gateway logs for this. |
+| Log asks for `agents.defaults.systemAgent.agentId` | Cron or memory reconcile needs a system agent. `openclaw config set agents.defaults.systemAgent.agentId main`. |
 | Dashboard unreachable | `openclaw gateway restart`; check `gateway.controlUi.allowedOrigins`. |
 | `Invalid config` at startup | `openclaw config validate`, then `openclaw doctor --fix`; look for `.rejected.*` backups. |
+
+Route a channel account to an agent (a binding that omits `accountId` matches only the default account; use `"*"` for a channel-wide fallback):
+
+```bash
+openclaw config set bindings '[{"agentId":"main","match":{"channel":"telegram","accountId":"default"}}]' --strict-json --merge
+openclaw gateway restart
+```
 
 Set OpenClaw to use the model explicitly if a later onboarding changed it:
 
